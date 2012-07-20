@@ -283,6 +283,7 @@ def euler_12():
         if prime.num_factors(n) > 500:
             print("Lösung:", n)
             break
+## Lösung: 76576500
 
 def euler_13():
     "Find the first ten digits of the sum of one-hundred 50-digit numbers."
@@ -388,7 +389,7 @@ def euler_13():
         20849603980134001723930671666823555245252804609722,
         53503534226472524250874054075591789781264330331690,
     )))[0:10])
-
+## Lösung: 5537376230
 
 def euler_14():
     "Find the longest sequence using a starting number under one million."
