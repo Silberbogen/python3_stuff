@@ -2,8 +2,37 @@
 # -*- coding: utf-8 -*-
 # -*- py-python-command: "/usr/bin/python3"; -*-
 # Copyright (C) 2012 by Sascha Biermanns
-# Die Lösungen zu den 50 Aufgaben Eulers
+# Die Lösungen zu den 50+ Aufgaben Eulers
 # Zu finden bei: http://projecteuler.net/
+
+"""
+Filename:  euler.py
+
+Description:  solutions to the tasks from Project Euler (steadily growing)
+
+Version:  0.59
+Created:  26.06.2012
+Revision:  none
+Language: Python 3
+
+Author:  Sascha K. Biermanns (skbierm), skbierm@gmail.com
+License:  ISC
+Copyright (C)  2012, Sascha K. Biermanns
+
+Permission to use, copy, modify, and/or distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+"""
+
+
 
 import pickle   # euler_12
 import datetime # euler_19
