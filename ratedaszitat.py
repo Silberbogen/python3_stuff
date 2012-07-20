@@ -103,7 +103,7 @@ def spiele_satz(satz):
         return False
     
 def spiele_zufälligen_satz():
-    f = open('/usr/local/bin/zufallssätze.txt', 'r')
+    f = open('~/documents/zufallssätze.txt', 'r')
     sätze = f.readlines()
     f.close()
     satz = sätze[randint(1,len(sätze))]
