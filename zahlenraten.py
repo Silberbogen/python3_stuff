@@ -32,7 +32,9 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 from toolbox import ask_ok, get_int
 from random import randint
-    
+from sys import stdin
+
+   
 def rate_meine_zahl(minimum_zahl = 1, maximum_zahl = 1000):
     print("Sehr schön, dann errate du mal meine Zahl!")
     assert type(minimum_zahl) == int, "Die kleinste Zahl muss eine Ganzzahl sein."
@@ -107,5 +109,6 @@ def zahlenraten():
             
 
 if __name__ == "__main__":
-    zahlenraten()
+    if stdin.isatty():
+        zahlenraten()
     

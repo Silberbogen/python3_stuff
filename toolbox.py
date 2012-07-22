@@ -7,9 +7,9 @@ Filename:  toolbox.py
 
 Description:  Python-Vorlagen für Programme
 
-Version:  0.01
+Version:  0.02
 Created:  26.06.2012
-Revision:  none
+Revision:  22.07.2012
 Language: Python 3
 
 Author:  Sascha K. Biermanns (skbierm), skbierm@gmail.com
@@ -190,6 +190,31 @@ begrenzt"""
     # teilen wir dies mit indem wir None zurückliefern
     else:
         return None
+
+def invert_dict(ab):
+    """invert_dict nimmt ein dictionary entgegen - und liefert ein invertiertes
+Wörterbuch zurückt. Es ist wie bei einem richtigen Wörterbuch, wo man ein
+deutsch-italienisches erhält, und ein italienisch-deutsches zurückerhält."""
+    ba = {} # Leeres Wörterbuch erzeugen
+    for b in ab: # Für jeden Eintrag b in den Schlüsseln des Ursprungswörterbuchs
+        # Wenn man einen Eintrag wie Farbe: color, colour hat, möchte man ja
+        # zwei Einträge im neuen Wörtebuch erhalten:
+        # wie in color: Farbe
+        #       colour: Farbe
+        for a in ab[b]:
+            # Für jeden Eintrag a in den Werten des Ursprungswörterbuchs
+            # Man kennt das ja, verschiedene Begriffe können dasselbe bedeuten,
+            # wie in color: Farbe
+            #       colour: Farbe
+            # also muss der Eintrag umgekehrt entstehen:
+            #        Farbe: color, colour
+            if a in ba: # wenn bereits ein Eintrag existiert
+                ba[a] += [b] # wird ein weiterer Wert zum Schlüsssel hinzugefügt
+            else: # es existiert noch kein Eintrag
+                ba[a] = [b] # dann werden Schlüssel und Wert angelegt
+    # Liefere das neu erstellte Wörterbuch zurück
+    return ba
+        
 
 def programm_beenden(sicherheitsabfrage=True,
                      prompt="Programm beenden? (ja/nein) ",

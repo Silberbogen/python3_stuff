@@ -32,6 +32,7 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 #from toolbox import ask_ok, get_int, get_float, programm_beenden
 from random import randint
+from sys import stdin
 
 def spiele_satz(satz):
     # Zuerst wird der gesuchte Satz in Grossbuchstaben umgewandelt
@@ -103,7 +104,7 @@ def spiele_satz(satz):
         return False
     
 def spiele_zufälligen_satz():
-    f = open('~/documents/zufallssätze.txt', 'r')
+    f = open('/usr/local/bin/zufallssätze.txt', 'r')
     sätze = f.readlines()
     f.close()
     satz = sätze[randint(1,len(sätze))]
@@ -112,7 +113,8 @@ def spiele_zufälligen_satz():
 
 # Automatischer Start, falls dies ein Skript ist
 if __name__ == '__main__':
-    spiele_zufälligen_satz()
+    if stdin.isatty():
+        spiele_zufälligen_satz()
     
     
     
