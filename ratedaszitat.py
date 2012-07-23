@@ -8,9 +8,9 @@ Filename:  ratedaszitat.py
 Description:  Ein kleines Ratespiel im Geiste von Glücksrad ... auch wenn auf
               das Rad bisher noch verzichtet wurde.
 
-Version:  0.05
+Version:  0.06
 Created:  17.07.2012
-Revision:  20.07.2012
+Revision:  23.07.2012
 Language: Python 3
 
 Author:  Sascha K. Biermanns (skbierm), skbierm@gmail.com
@@ -30,22 +30,43 @@ ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 """
 
-#from toolbox import ask_ok, get_int, get_float, programm_beenden
+from toolbox import ask_ok
 from random import randint
 from sys import stdin
+import shelve
 
-def spiele_satz(satz):
-    # Zuerst wird der gesuchte Satz in Grossbuchstaben umgewandelt
-    # und dann als eine Menge gespeichert
-    lösungs_menge = set()
-    # Der Satz wir als Menge von alphanumerischen Grossbuchstaben und Ziffern
-    # in der Variable lösungs_menge gespeichert
-    for i in satz.upper():
-        if i.isalnum():
-            lösungs_menge.add(i)
-    # Die Variable rate_menge wird alle von uns geratenen Buchstaben entgegen-
-    # nehmen
-    rate_menge = set()
+DBNAME = 'ratedaszitatdb' # Name der Shelf-Datei
+
+# ----------------------------
+# Die Behandlung der Datenbank
+# ----------------------------
+
+def datensatz_abrufen():
+    db = shelve.open(DBNAME)
+    zufall = randint(1, len(db))
+    gesucht, hinweis = db[str(zufall)]
+    db.close()
+    return gesucht, hinweis
+
+def datensatz_hinzufügen():
+    db = shelve.open(DBNAME)
+    gesucht = input("Wonach wird gesucht? ")
+    hinweis = input("Wie lautet der Hinweis? ")
+    db[str(len(db)+1)] = (gesucht, hinweis)
+    db.close()
+
+def datensätze_eingeben():
+    weiter = True
+    while weiter:
+        datensatz_hinzufügen()
+        weiter = ask_ok("Einen weiteren Datensatz hinzufügen (ja/nein)? ")
+
+# -----------------
+# Das Spiel an sich
+# -----------------
+
+def intro():
+    """Die Funktion intro enthält einen Begrüssungsbildschirm für den Spieler."""
     print()
     print("Herzlich willkommen zu einer kleinen Runde:")
     print()
@@ -58,12 +79,26 @@ def spiele_satz(satz):
     print("Zitat indem du es auf einen Rutsch und ")
     print("fehlerfrei eingibst und dann die ENTER-Taste")
     print("drückst.")
-    print()
+    print()      
+
+def spiele_satz(satz, hinweis):
+    # Zuerst wird der gesuchte Satz in Grossbuchstaben umgewandelt
+    # und dann als eine Menge gespeichert
+    lösungs_menge = set()
+    # Der Satz wir als Menge von alphanumerischen Grossbuchstaben und Ziffern
+    # in der Variable lösungs_menge gespeichert
+    for i in satz.upper():
+        if i.isalnum():
+            lösungs_menge.add(i)
+    # Die Variable rate_menge wird alle von uns geratenen Buchstaben entgegen-
+    # nehmen
+    rate_menge = set()
     # Solange die lösungs_menge keine echte Teilmenge der rate_menge ist,
     # wird die Schleife durchlaufen. Sollte lösungs_mennge zu einer echten
     # Teilmenge werden, sind alle Buchstaben eingegeben  worden, der Spieler
     # hat quasi ohne es zu merken den Satz gelöst.
     while not lösungs_menge <= rate_menge:
+        print("Hinweis: ", hinweis)
         print("Der gesuchte Satz lautet diesmal:")
         ausgabe = ''
         for i in satz:
@@ -104,17 +139,23 @@ def spiele_satz(satz):
         return False
     
 def spiele_zufälligen_satz():
-    f = open('/usr/local/bin/zufallssätze.txt', 'r')
-    sätze = f.readlines()
-    f.close()
-    satz = sätze[randint(1,len(sätze))]
-    spiele_satz(satz.strip())
+    satz, hinweis = datensatz_abrufen()
+    spiele_satz(satz.strip(), hinweis.strip())
 
 
 # Automatischer Start, falls dies ein Skript ist
 if __name__ == '__main__':
     if stdin.isatty():
-        spiele_zufälligen_satz()
+        weiter = True
+        if ask_ok("Wollen wir eine Runde spielen (ja/nein)"):
+            intro()       
+            while weiter:
+                spiele_zufälligen_satz()
+                weiter = ask_ok("Noch eine Runde (ja/nein)? ")
+        elif ask_ok("Willst du Datensätze zum Spiel hinzufügen (ja/nein)? "):
+            while weiter:
+                datensatz_hinzufügen()
+                weiter = ask_ok("Einen weiteren Datensatz hinzufügen (ja/nein)? ")                
     
     
     
