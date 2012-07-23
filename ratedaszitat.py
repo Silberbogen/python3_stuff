@@ -8,7 +8,7 @@ Filename:  ratedaszitat.py
 Description:  Ein kleines Ratespiel im Geiste von Glücksrad ... auch wenn auf
               das Rad bisher noch verzichtet wurde.
 
-Version:  0.06
+Version:  0.07
 Created:  17.07.2012
 Revision:  23.07.2012
 Language: Python 3
@@ -35,21 +35,32 @@ from random import randint
 from sys import stdin
 import shelve
 
-DBNAME = 'ratedaszitatdb' # Name der Shelf-Datei
-
+UNGESPIELTDB = 'ungespieltezitate' # Name der Shelf-Datei
+GESPIELTDB = 'gespieltezitate'
 # ----------------------------
 # Die Behandlung der Datenbank
 # ----------------------------
 
 def datensatz_abrufen():
-    db = shelve.open(DBNAME)
-    zufall = randint(1, len(db))
-    gesucht, hinweis = db[str(zufall)]
-    db.close()
+    ungespielt = shelve.open(UNGESPIELTDB)
+    gespielt = shelve.open(GESPIELTDB)
+    # Es sind keine Datensätze in ungespielt verblieben, kopiere alle
+    # Datensätze zurück in ungespielt
+    if len(ungespielt) < 1:
+        anzahl = len(gespielt)
+        for datensatz in range(anzahl):
+            datensatz, paar = gespielt.popitem()
+            gesucht, hinweis = paar
+            ungespielt[str(len(ungespielt)+1)] = (gesucht, hinweis)
+    datensatz, paar = ungespielt.popitem()
+    gesucht, hinweis = paar
+    gespielt[str(len(gespielt)+1)] = (gesucht, hinweis)
+    ungespielt.close()
+    gespielt.close()
     return gesucht, hinweis
 
 def datensatz_hinzufügen():
-    db = shelve.open(DBNAME)
+    db = shelve.open(UNGESPIELTDB)
     gesucht = input("Wonach wird gesucht? ")
     hinweis = input("Wie lautet der Hinweis? ")
     db[str(len(db)+1)] = (gesucht, hinweis)
