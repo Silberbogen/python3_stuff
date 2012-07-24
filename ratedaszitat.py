@@ -8,9 +8,9 @@ Filename:  ratedaszitat.py
 Description:  Ein kleines Ratespiel im Geiste von Glücksrad ... auch wenn auf
               das Rad bisher noch verzichtet wurde.
 
-Version:  0.07
+Version:  0.08
 Created:  17.07.2012
-Revision:  23.07.2012
+Revision:  24.07.2012
 Language: Python 3
 
 Author:  Sascha K. Biermanns (skbierm), skbierm@gmail.com
@@ -35,31 +35,44 @@ from random import randint
 from sys import stdin
 import shelve
 
-UNGESPIELTDB = 'ungespieltezitate' # Name der Shelf-Datei
-GESPIELTDB = 'gespieltezitate'
+UNGESPIELTDB = 'ungespieltezitate' # Name der Shelf-Datei für ungespielte Zitate
+GESPIELTDB = 'gespieltezitate' # Name der Shelf-Datei für gespielte Zitate
+
 # ----------------------------
 # Die Behandlung der Datenbank
 # ----------------------------
 
+def hole_daten_aus_shelf(shelf):
+    """ Per popitem-Methode die Datensätze aus einem  beliebigen Shelf abholen
+und als passendes Tupel zurückgeben """
+    datensatz, paar = shelf.popitem()
+    gesucht, hinweis = paar
+    return gesucht, hinweis
+
 def datensatz_abrufen():
+    """ Die Funktion dient zur Rückgabe des nächsten spielbaren Datensatzes.
+Hierbei ruft sie nicht einfach nur die Daten ab, sondern verwaltet auch
+bereits gespielte und ungespielte Daten.
+Sollte er keine ungespielten Daten mehr geben, werden alle Datensätze aus
+dem gespielten Shelf entnommen und im ungespielten Shelf gespeichert."""
     ungespielt = shelve.open(UNGESPIELTDB)
     gespielt = shelve.open(GESPIELTDB)
-    # Es sind keine Datensätze in ungespielt verblieben, kopiere alle
-    # Datensätze zurück in ungespielt
+    # Wenn keine Datensätze in ungespielt verblieben sind, dann kopiere alle
+    # Datensätze zurück in ungespielt und entferne sie aus gespielt
     if len(ungespielt) < 1:
         anzahl = len(gespielt)
         for datensatz in range(anzahl):
-            datensatz, paar = gespielt.popitem()
-            gesucht, hinweis = paar
-            ungespielt[str(len(ungespielt)+1)] = (gesucht, hinweis)
-    datensatz, paar = ungespielt.popitem()
-    gesucht, hinweis = paar
-    gespielt[str(len(gespielt)+1)] = (gesucht, hinweis)
+            ungespielt[str(len(ungespielt) + 1)] = hole_daten_aus_shelf(gespielt)
+    # Hole den nächsten Datensatz aus dem Shelf der ungespielten Datensätze
+    gesucht, hinweis = hole_daten_aus_shelf(ungespielt)
+    # und kopiere den Datensatz in das Shelf der gespielten Datensätze
+    gespielt[str(len(gespielt) + 1)] = gesucht, hinweis
     ungespielt.close()
     gespielt.close()
     return gesucht, hinweis
 
 def datensatz_hinzufügen():
+    """ Die Funktion dient zur Eingabe eines weiteren Datensatzes """
     db = shelve.open(UNGESPIELTDB)
     gesucht = input("Wonach wird gesucht? ")
     hinweis = input("Wie lautet der Hinweis? ")
@@ -67,6 +80,8 @@ def datensatz_hinzufügen():
     db.close()
 
 def datensätze_eingeben():
+    """ Die Funktion enthält eine bedingte Schleife zur bequemen Eingabe
+mehrerer Datensätze """
     weiter = True
     while weiter:
         datensatz_hinzufügen()
@@ -93,6 +108,7 @@ def intro():
     print()      
 
 def spiele_satz(satz, hinweis):
+    """Die Funktion enthält die Hauptroutine zum Spielen des Spiels."""
     # Zuerst wird der gesuchte Satz in Grossbuchstaben umgewandelt
     # und dann als eine Menge gespeichert
     lösungs_menge = set()
@@ -148,11 +164,6 @@ def spiele_satz(satz, hinweis):
         print("Ohne es zu bemerken hast du alle Buchstaben ergänzt!")
         print("Das fühlt sich jetzt nicht wirklich wie ein Sieg an, oder?")
         return False
-    
-def spiele_zufälligen_satz():
-    satz, hinweis = datensatz_abrufen()
-    spiele_satz(satz.strip(), hinweis.strip())
-
 
 # Automatischer Start, falls dies ein Skript ist
 if __name__ == '__main__':
@@ -161,7 +172,8 @@ if __name__ == '__main__':
         if ask_ok("Wollen wir eine Runde spielen (ja/nein)"):
             intro()       
             while weiter:
-                spiele_zufälligen_satz()
+                satz, hinweis = datensatz_abrufen()
+                spiele_satz(satz.strip(), hinweis.strip())
                 weiter = ask_ok("Noch eine Runde (ja/nein)? ")
         elif ask_ok("Willst du Datensätze zum Spiel hinzufügen (ja/nein)? "):
             while weiter:
