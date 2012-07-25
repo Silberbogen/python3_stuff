@@ -7,9 +7,9 @@ Filename:  toolbox.py
 
 Description:  Python-Vorlagen für Programme
 
-Version:  0.02
+Version:  0.03
 Created:  26.06.2012
-Revision:  22.07.2012
+Revision:  25.07.2012
 Language: Python 3
 
 Author:  Sascha K. Biermanns (skbierm), skbierm@gmail.com
@@ -76,6 +76,13 @@ durch eine entsprechende Parameterübergabe begrenzt"""
     else:
         return None
 
+def durchschnitt(*x):
+    """Berechnet den Durchschnitt der übergebene Parameter"""
+    summe = 0
+    for zahl in x:
+        summe += zahl
+    return summe / len(x)
+
 def faktor(x):
     """faktor liefert zum Parameter x den entsprechenden Faktor zurück,
 so z.B. faktor(3) = 6 oder faktor(4) = 24"""
@@ -85,6 +92,79 @@ so z.B. faktor(3) = 6 oder faktor(4) = 24"""
         r *= i
     return r
 
+def faktor_festlegen(x):
+    """Dient dazu einen Zahlenfaktor für einen String zurückzuliefern"""
+    if x in ("Yottameter", "Ym"):
+        return 10e24
+    elif x in ("Zettameter", "Zm"):
+        return 10e21
+    elif x in ("Exameter", "Em"):
+        return 10e18
+    elif x in ("Petameter", "Pm", "Gigatonne", "Gt"):
+        return 10e15
+    elif x in ("Terameter", "Tm", "Megatonne", "Mt"):
+        return 10e12
+    elif x in ("Gigameter", "Gm", "Kilotone", "kt"):
+        return 10e9
+    elif x in ("Megameter", "Mm", "Tonne", "t"):
+        return 10e6
+    elif x in ("Kilometer", "km", "Kilogramm", "kg", "Tausend"):
+        return 10e3
+    elif x in ("Pfund"):
+        return 500
+    elif x in ("Gros", "Gröthen", "Gruessa", "Tylt"):
+        return 144
+    elif x in ("Hektometer", "hm", "Hundert"):
+        return 10e2
+    elif x in ("shackle", "shot"):
+        return 27.432
+    elif x in ("Dutzend"):
+        return 12
+    elif x in ("square-foot", "square-feet"):
+        return 10.7639
+    elif x in ("Dekameter", "dam"):
+        return 10e1
+    elif x in ("Byte", "octet", "Oktett"):
+        return 8
+    elif x in ("fathom", "fth"):
+        return 1.8288
+    elif x in ("Meter", "m", "Gramm", "g", "Bit", "Quadratmeter", "qm", "m²"):
+        return 10e0
+    elif x in ("foot", "Fuß", "Fuss"):
+        return 0.3048
+    elif x in ("Zoll", "Inch", "Inches", '"'):
+        return 0.0254
+    elif x in ("Dezimeter", "dm", "Zehntel"):
+        return 10e-1
+    elif x in ("Zentimeter", "cm", "Quadratdezimeter", "dm²", "Hundertstel"):
+        return 10e-2
+    elif x in ("Millimeter", "mm", "Milligramm", "mg", "Tausendstel"):
+        return 10e-3
+    elif x in ("Quadratzentimer", "cm²"):
+        return 10e-4
+    elif x in ("Mikrometer", "µm", "Mikrogramm", "µg", "Quadratmillimeter", "mm²"):
+        return 10e-6
+    elif x in ("Nanometer", "nm"):
+        return 10e-9
+    elif x in ("Ångström", "Å"):
+        return 10e-10
+    elif x in ("Pikometer", "pm"):
+        return 10e-12
+    elif x in ("Femtometer", "fm"):
+        return 10e-15
+    elif x in ("Attometer", "am"):
+        return 10e-18
+    elif x in ("Zeptometer", "zm"):
+        return 10e-21
+    elif y in ("Yoktometer", "ym"):
+        return 10e-24
+    else:
+        return None
+
+def faktorisiere(x):
+    """factorisiere zerlegt eine Zahl in ihre Ganzzahl-Faktoren"""
+    return [i for i in range(1, x//2 + 1) if not x%i] + [x]
+    
 def get_float(prompt = "Bitte eine Fliesspunktzahl eingeben: ",
               versuche = None,
               beschwerde = None):
@@ -191,6 +271,20 @@ begrenzt"""
     else:
         return None
 
+def ggt(u, *v):
+    """ggt liefert den größten gemeinsamen Teiler  einer Liste von Zahlen
+zurückliefert."""
+    for i in v:
+        u = ggt_iter(u, i)
+    return u
+
+def ggt_iter(u, v):
+    """Unterfunktion die den größten gemeinsamen Teiler zweier Zahlen
+nach Euclids Lösungsweg zurückliefert."""
+    while v:
+        u, v = v, u % v
+    return abs(u)
+
 def invert_dict(ab):
     """invert_dict nimmt ein dictionary entgegen - und liefert ein invertiertes
 Wörterbuch zurückt. Es ist wie bei einem richtigen Wörterbuch, wo man ein
@@ -214,8 +308,26 @@ deutsch-italienisches erhält, und ein italienisch-deutsches zurückerhält."""
                 ba[a] = [b] # dann werden Schlüssel und Wert angelegt
     # Liefere das neu erstellte Wörterbuch zurück
     return ba
-        
 
+def kgv(*werte):
+    """Liefert das kleinste gemeinsame Vielfache einer Zahlenkolonne zurück"""
+    # Allen Werten werden zu einer Menge von Positivwerten umgewandelt
+    werte = set([abs(int(v)) for v in werte])
+    if werte and 0 in werte: 
+        return 0 # 0 in der Liste, keine Berechnung möglich
+    n = n0 = max(werte)
+    # n macht in der Liste der Werte jetzt keinen Sinn mehr,
+    # da wir ja wissen, das n % m wenn m == n keinen Rest hat
+    werte.remove(n)
+    # Solange bei der Division durch einen der Werte ein Rest entsteht,
+    # wird n0 (und damit die ursprünglich größte Zahl der Werte)
+    # zu n hinzugefügt.
+    while any( n % m for m in werte ):
+        n += n0
+    # Bleibt kein Rest bei der Division übrig, ist n (ein Vielfaches von n0)
+    # der gesuchte Wert und wird zurückgeliefert
+    return n
+     
 def programm_beenden(sicherheitsabfrage=True,
                      prompt="Programm beenden? (ja/nein) ",
                      sicherungsfrage="Sind Sie sicher? (ja/nein)"):
