@@ -1,23 +1,19 @@
+
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 # -*- py-python-command: "/usr/bin/python3"; -*-
-# Copyright (C) 2012 by Sascha Biermanns
-# Die Lösungen zu den 50+ Aufgaben Eulers
-# Zu finden bei: http://projecteuler.net/
 
 """
 Filename:  euler.py
-
-Description:  solutions to the tasks from Project Euler (steadily growing)
-
-Version:  0.59
+Description:  Lösungen zu den Aufgaben aus Projekt Euler
+Version:  31.12.2014
 Created:  26.06.2012
 Revision:  none
 Language: Python 3
 
-Author:  Sascha K. Biermanns (skbierm), skbierm@gmail.com
+Author:  Sascha K. Biermanns (Silberbogen), skkd.h4k1n9 AT yahoo PUNKT de
 License:  ISC
-Copyright (C)  2012, Sascha K. Biermanns
+Copyright (C)  2012-2014, Sascha K. Biermanns
 
 Permission to use, copy, modify, and/or distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -32,194 +28,404 @@ ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 """
 
+import numpy # erathostenes_sieb()
+import datetime # 19 => date
+import re # 35 => search
+from math import factorial, log10, pow, sqrt # permutation, 15, 25
+from memoize import memoize
+from collections import deque
+from combinatorics import selections # 59
 
 
-import pickle   # euler_12
-import datetime # euler_19
-import prime    # euler_23
-import math     # euler_25
+############################
+# Unterstützende Prädikate #
+############################
 
-def addiere_ziffern(zahl):
+
+def ist_abundante_zahl(n):
+    "Prädikat. Prüft ob N eine abundante Zahl ist."
+    if sum(teiler(n)[:-1]) > n:
+        return True
+    else:
+        return False
+
+    
+def ist_befreundete_zahl(n):
+    "Prädikat. Prüft ob N eine befreundete Zahl ist."
+    bz = sum(echte_teiler(n))
+    return n == sum(echte_teiler(bz))
+
+
+def ist_defiziente_zahl(n):
+    "Prädikat. Prüft ob N eine defiziente Zahl ist."
+    return sum(echte_teiler(n)) < n
+
+
+def ist_dreieckszahl(n):
+    "Prädikat. Prüft ob N eine Dreieckszahl ist."
+    wert = sqrt(1 + (8 * n))
+    return wert == int(wert)
+
+
+def ist_fünfeckszahl(n):
+    "Prädikat. Prüft ob N eine Fünfeckszahl ist."
+    p = (1 + sqrt(24 * n + 1)) / 6
+    return p == int(p)
+
+
+def ist_gerade(n):
+    "Prädikat. Prüft ob N gerade ist."
+    return n%2 == 0
+
+
+def ist_lychrel_zahl(n):
+    "Prädikat. Prüft ob N eine Lychrel-Zahl ist."
+    n = str(n)
+    for count in range(50):
+        n = str(int(n) + int(n[::-1]))
+        if n == n[::-1]:
+            return False
+    return True
+
+    
+def ist_palindrom(x):
+    "Prädikat. Prüft ob X ein Palindrom ist."
+    if isinstance(x, int):
+        x = str(x)
+    return x == x[::-1]
+
+
+def ist_pandigital(n, s=9):
+    "Prädikat. Prüft ob N eine pandigitale Zal ist."
+    n=str(n)
+    return len(n)==s and not '1234567890'[:s].strip(n)
+
+
+def ist_permutation(a,b):
+    "Prädikat. Prüft ob A und B Permutationen von einander sind."
+    return sorted(str(a)) == sorted(str(b))
+
+
+def ist_primzahl(n):
+    "Prädikat. Prüft ob N eine Primzahl ist."
+    if n <= 3:
+        return n >= 2
+    elif n % 2 == 0 or n % 3 == 0:
+        return False
+    k = 5
+    for i in range(5, int(n ** 0.5) + 1, 6):
+        if n % i == 0 or n % (i + 2) == 0:
+            return False
+    return True
+
+
+def ist_quadratzahl(n):
+    "Prädikat. Prüft ob N ein perfektes Quadrat ist."
+    return n == pow(int(sqrt(n)),2)
+
+
+def ist_trunkierbare_primzahl(n,modus=0):
+    "Prädikat. Prüft ob N eine trunkierbare Primzahl ist."
+    länge = len(str(n))
+    if 0 == modus or 1 == modus: # 0 = beidseitig, 1 = linkseitig
+        for i in range(länge):
+            if not ist_primzahl(int(str(n)[i:])):
+                return False
+    if 0 == modus or 2 == modus: # 0 = beidseitig, 2 = rechtsseitig
+        for i in range(länge):
+            if not ist_primzahl(int(str(n)[:länge-i])):
+                return False
+    return True
+
+
+def ist_ungerade(n):
+    "Prädikat. Prüft ob N ungerade ist."
+    return n%2 != 0
+
+
+def ist_vollkommene_zahl(n):
+    "Prädikat. Prüft ob N eine vollkommene Zahl ist."
+    return n == sum(echte_teiler(n))
+
+
+def ist_zirkuläre_primzahl(n):
+    "Prädikat. Prüft ob N eine zirkuläre Primzahl ist."
+    def shifter(n):
+        s = deque(str(n))
+        for i in range(len(s)):
+            yield int(''.join(s))
+            s.rotate()
+    return all(ist_primzahl(pz) for pz in shifter(n))
+
+
+#############################
+# Unterstützende Funktionen #
+#############################
+
+
+def anzahl_teiler(n):
+    "Funktion. Liefert die Anzahl der Teiler der Zahl N zurück."
+    assert isinstance(n, int), "N muß eine Integerzahl sein."
+    assert n == abs(n), "N muß eine positive Integerzahl sein."
+    anzahl = 0
+    for i in range(1,int(n**0.5+1)):
+        if n%i == 0: anzahl += 2
+    return anzahl
+
+
+def addiere_ziffern(n):
+    "Funktion. Summiert die Wertigkeit der einzelnen Ziffern von N."
+    assert isinstance(n, int), "N muß eine Integerzahl sein."
+    assert n == abs(n), "N muß eine positive Integerzahl sein."
     summe = 0
-    while zahl > 0:
-        summe += zahl % 10
-        zahl //= 10
+    while n > 0:
+        summe += n % 10
+        n //= 10
     return summe
 
-def faktor(n):
-    f = 1
-    for x in range(1, n+1):
-        f *= x
-    return f
 
-def fibonacciGenerator():
-    f0, f1 = 0, 1
+def collatz_sequenz(n):
+    "Funktion. Liefert die Länge der Collatz-Sequenz der Zahl N."
+    assert isinstance(n, int), "N muß eine Integerzahl sein."
+    assert n == abs(n), "N muß eine positive Integerzahl sein."
+    global collatz_länge
+    try:
+        collatz_länge
+    except NameError:
+        collatz_länge = {1: 1}
+    if not collatz_länge.get(n,0):
+        if ist_gerade(n):
+            collatz_länge[n] = 1 + collatz_sequenz(n//2)
+        else:
+            collatz_länge[n] = 1 + collatz_sequenz(3*n + 1)
+    return collatz_länge[n]
+
+
+def dreieckszahl(n):
+    "Funktion: Liefert die Dreieckszahl des Rang i."
+    assert isinstance(n, int), "N muß eine Integerzahl sein."
+    assert n == abs(n), "N muß eine positive Integerzahl sein."
+    return (n * (n+1) // 2)
+
+
+def echte_teiler(n):
+    "Funktion: Liefert die echten Teiler der Zahl i zurück."
+    assert isinstance(n, int), "N muß eine Integerzahl sein."
+    assert n == abs(n), "N muß eine positive Integerzahl sein."
+    return teiler(n)[:-1]
+
+
+def erathostenes_sieb(limit):
+    "Funktion. Liefert ein Array mit Primzahlen bis hin zu LIMIT zurück."
+    ist_primzahl = numpy.ones(limit + 1, dtype=numpy.bool)
+    for n in range(2, int(limit**0.5 + 1.5)): 
+        if ist_primzahl[n]:
+            ist_primzahl[n*n::n] = 0
+    return numpy.nonzero(ist_primzahl)[0][2:]
+
+
+@memoize
+def fibonacci(n):
+    '''Funktion. Bildet die Fibonaccizahl zur n. Zahl.'''
+    assert isinstance(n, int), "N muß eine Integerzahl sein."
+    assert n == abs(n), "N muß eine positive Integerzahl sein."
+    if n == 0:
+        return 0
+    elif n == 1:
+        return 1
+    else:
+        return fibonacci(n-1) + fibonacci(n-2)
+
+    
+def fibonacci_generator():
+    "Generator. Generiert die Fibonacci-Folge."
+    f0, f1 = 1, 1
     while True:
         yield f0
         f0, f1 = f1, f0+f1
-            
+
+
+def fünfeckszahl(n):
+    "Funktion. Liefert die n. Fünfeckszahl zurück."
+    assert isinstance(n, int), "N muß eine Integerzahl sein."
+    assert n == abs(n), "N muß eine positive Integerzahl sein."
+    return (n * (3 * n - 1)) // 2
+
+
+def ggt(a,b):
+    "Funktion. Liefert den größten gemeinsamen Teiler zweier Zahlen zurück."
+    assert isinstance(a, int), "A muß eine Integerzahl sein."
+    assert isinstance(b, int), "B muß eine Integerzahl sein."
+    return b and ggt(b, a%b) or a
+
+
+
+
+def kgv(a,b):
+    "Funktion. Liefert das kleinste gemeinsame Vielfache zweier Zahlen zurück."
+    assert isinstance(a, int), "A muß eine Integerzahl sein."
+    assert isinstance(b, int), "B muß eine Integerzahl sein."
+    return a * b // ggt(a,b)
+
+
+def mersenne_zahl(n):
+    "Funktion. Liefert die n. Mersenne-Zahl zurück."
+    assert isinstance(n, int), "N ist keine Integerzahl"
+    assert n >= 1, "N muß größer oder gleich 1 sein."
+    return int(pow(n,2))-1
+
+
 def permutation(orig_nums, n):
     nums = list(orig_nums)
     perm = []
     while len(nums):
-        teiler = faktor(len(nums)-1)
+        teiler = factorial(len(nums)-1)
         pos = n // teiler
         n %= teiler
         perm.append(nums[pos])
         nums = nums[0:pos] + nums[pos+1:]
     return perm
 
-def primzahlGenerator():
-    yield 2
-    yield 3
-    primzahlen = [2,3]
-    i = 5
+
+def primfaktoren(n):
+    "Funktion. Liefert eine Liste der Primfaktoren der Zahl N."
+    assert isinstance(n, int), "N muß eine Integerzahl sein."
+    assert n == abs(n), "N muß eine positive Integerzahl sein."
+    p = primzahl_generator()
+    faktoren = []
+    i = next(p)
+    while i < n:
+        if n%i == 0:
+            faktoren.append(i)
+            n //= i
+        else: i = next(p)
+    faktoren.append(n)
+    return faktoren
+
+
+def primzahl(n):
+    "Funktion. Liefert die n. Primzahl."
+    assert isinstance(n, int), "N muß eine Integerzahl sein."
+    assert n == abs(n), "N muß eine positive Integerzahl sein."
+    global _primzahlen
+    try:
+        return _primzahlen[n-1]
+    except NameError:
+        _primzahlen = erathostenes_sieb(n * 20)
+    except IndexError:
+        _primzahlen = erathostenes_sieb(n * 20)
+    return _primzahlen[n-1]
+
+
+def primzahl_generator():
+    "Generator. Generiert eine Folge der Primzahlen."
+    global _primzahlen
+    i = 0
     while True:
-        if all(i % p for p in primzahlen):
-            primzahlen.append(i)
-            yield i
-        i += 2
-
-def euler_01():
-    "Add all the natural numbers below one thousand that are multiples of 3 or 5."
-    summe = 0
-    liste = []
-    for i in range(1,1000):
-        if not (i % 3):
-            summe += i
-            liste.append(i)
-        elif not (i % 5):
-            summe += i
-            liste.append(i)
-    print("Liste aller Zahlen:", liste)
-    print("Summe:", summe,)
-##Liste aller Zahlen: [3, 5, 6, 9, 10, 12, 15, 18, 20, 21, 24, 25, 27, 30, 33, 35, 36, 39, 40, 42, 45, 48, 50, 51, 54, 55, 57, 60, 63, 65, 66, 69, 70, 72, 75, 78, 80, 81, 84, 85, 87, 90, 93, 95, 96, 99, 100, 102, 105, 108, 110, 111, 114, 115, 117, 120, 123, 125, 126, 129, 130, 132, 135, 138, 140, 141, 144, 145, 147, 150, 153, 155, 156, 159, 160, 162, 165, 168, 170, 171, 174, 175, 177, 180, 183, 185, 186, 189, 190, 192, 195, 198, 200, 201, 204, 205, 207, 210, 213, 215, 216, 219, 220, 222, 225, 228, 230, 231, 234, 235, 237, 240, 243, 245, 246, 249, 250, 252, 255, 258, 260, 261, 264, 265, 267, 270, 273, 275, 276, 279, 280, 282, 285, 288, 290, 291, 294, 295, 297, 300, 303, 305, 306, 309, 310, 312, 315, 318, 320, 321, 324, 325, 327, 330, 333, 335, 336, 339, 340, 342, 345, 348, 350, 351, 354, 355, 357, 360, 363, 365, 366, 369, 370, 372, 375, 378, 380, 381, 384, 385, 387, 390, 393, 395, 396, 399, 400, 402, 405, 408, 410, 411, 414, 415, 417, 420, 423, 425, 426, 429, 430, 432, 435, 438, 440, 441, 444, 445, 447, 450, 453, 455, 456, 459, 460, 462, 465, 468, 470, 471, 474, 475, 477, 480, 483, 485, 486, 489, 490, 492, 495, 498, 500, 501, 504, 505, 507, 510, 513, 515, 516, 519, 520, 522, 525, 528, 530, 531, 534, 535, 537, 540, 543, 545, 546, 549, 550, 552, 555, 558, 560, 561, 564, 565, 567, 570, 573, 575, 576, 579, 580, 582, 585, 588, 590, 591, 594, 595, 597, 600, 603, 605, 606, 609, 610, 612, 615, 618, 620, 621, 624, 625, 627, 630, 633, 635, 636, 639, 640, 642, 645, 648, 650, 651, 654, 655, 657, 660, 663, 665, 666, 669, 670, 672, 675, 678, 680, 681, 684, 685, 687, 690, 693, 695, 696, 699, 700, 702, 705, 708, 710, 711, 714, 715, 717, 720, 723, 725, 726, 729, 730, 732, 735, 738, 740, 741, 744, 745, 747, 750, 753, 755, 756, 759, 760, 762, 765, 768, 770, 771, 774, 775, 777, 780, 783, 785, 786, 789, 790, 792, 795, 798, 800, 801, 804, 805, 807, 810, 813, 815, 816, 819, 820, 822, 825, 828, 830, 831, 834, 835, 837, 840, 843, 845, 846, 849, 850, 852, 855, 858, 860, 861, 864, 865, 867, 870, 873, 875, 876, 879, 880, 882, 885, 888, 890, 891, 894, 895, 897, 900, 903, 905, 906, 909, 910, 912, 915, 918, 920, 921, 924, 925, 927, 930, 933, 935, 936, 939, 940, 942, 945, 948, 950, 951, 954, 955, 957, 960, 963, 965, 966, 969, 970, 972, 975, 978, 980, 981, 984, 985, 987, 990, 993, 995, 996, 999]
-##Summe: 233168
-
-def euler_02():
-    "By considering the terms in the Fibonacci sequenzuence whose values do not exceed four million, find the sum of the even-valued terms."
-    fibgen = fibonacciGenerator()
-    summe = 0
-    x = next(fibgen)
-    while x < 4000000:
-        if not x % 2:
-            summe += x
-        x = next(fibgen)
-    print("Summe:", summe)
-##Summe: 4613732
-
-def euler_03(zahl=600851475143):
-    "Find the largest prime factor of a composite number."
-    i = 2
-    liste = []
-    while i < zahl:
-        while not zahl % i:
-            zahl /= i
-            liste.append(i)
+        try:
+            yield _primzahlen[i]
+        except NameError:
+            _primzahlen = erathostenes_sieb((i+1) * 100)
+            yield _primzahlen[i]
+        except IndexError:
+            _primzahlen = erathostenes_sieb((i+1) * 100)
+            yield _primzahlen[i]
         i += 1
-    liste.append(i)
-    print("Liste der Primfaktoren:", liste)
-    print("Größter Primfaktor:", liste.pop())
-##Liste der Primfaktoren: [71, 839, 1471, 6857]
-##Größter Primfaktor: 6857
+        
 
-def euler_04():
-    "Find the largest palindrome made from the produkt of two 3-digit numbers."
-    palindrom = 0
-    for i in range(999,100, -1):
-        for j in range(i, 100, -1):
-            zahl = i * j
-            folge = str(zahl)
-            if folge == folge[::-1]:
-                if zahl > palindrom:
-                    palindrom = zahl
-    print("Lösung:", palindrom)
-##Lösung: 906609
+def produkt(sequenz):
+    "Funktion. Liefert das Produkt der überlieferten Sequenz."
+    n = 1
+    for x in sequenz:
+        n *= x
+    return n
 
-def euler_05():
-    "What is the smallest number divisible by each of the numbers 1 to 20?"
-    def ggt(a,b):
-        "Ermittelt den größten gemeinsamen Teiler zweier Zahlen"
-        return b and ggt(b, a % b) or a
-    def kgv(a,b):
-        "Ermittelt das kleinste gemeinsame Vielfache zweier Zahlen"
-        return a * b / ggt(a,b)
-    zahl = 1
-    for i in range(2,21):
-        zahl = kgv(zahl, i)
-    print("Lösung:", int(zahl))
-##Lösung: 232792560
 
-def euler_06():
-    "What is the difference between the sum of the squares and the square of the sums?"
+def rückwärts(x):
+    "Funktion. Liefert das Umgekehrte von X zurück."
+    if isinstance(x, int):
+        return int(str(x)[::-1])
+    elif isinstance(x, str):
+        return x[::-1]
+    
+
+def teiler(n):
+    "Funktion. Liefert eine Liste der Primfaktoren der Zahl N."
+    assert isinstance(n, int), "N muß eine Integerzahl sein."
+    assert n == abs(n), "N muß eine positive Integerzahl sein."
+    unten = []
+    oben = []
+    for i in range(1,int(n**0.5+1)):
+        if n%i == 0:
+            unten.append(i)
+            oben.append(n//i)
+    oben.reverse()
+    unten.extend(oben)
+    return unten
+
+
+#####################
+# Die Euler-Aufgabe #
+#####################
+
+
+def euler_1():
+    return sum(i for i in range(1000) if i%3 == 0 or i%5 == 0)
+
+
+def euler_2():
+    f = fibonacci_generator()
     summe = 0
-    quadratsumme = 0
-    for i in range(1, 101):
-        summe += i
-        quadratsumme += i**2
-    summenquadrat = summe**2
-    print("(1+2+...+100)² =", summenquadrat)
-    print("1²+2²+...+100² =", quadratsumme)
-    print(summenquadrat, "-", quadratsumme, "=", summenquadrat-quadratsumme)
-##(1+2+...+100)² = 25502500
-##1²+2²+...+100² = 338350
-##25502500 - 338350 = 25164150
+    x = next(f)
+    while x < 4000000:
+        if gerade(x): summe += x
+        x = next(f)
+    return summe
 
-def euler_07():
-    "Find the 10001st prime."
-    primzahl = primzahlGenerator()
-    for x in range(10000):
-        next(primzahl)
-    x = next(primzahl)
-    print("Lösung:", x)
-##Lösung: 104743
 
-def euler_08():
-    "Discover the largest produkt of five consecutive digits in the 1000-digit number."
+def euler_3(n = 600851475143):
+    return max(primfaktoren(n))
+
+
+def euler_4():
+    return max(i*j for i in range(100,1000) for j in range(100,1000) if palindrom(i*j))
+    
+
+def euler_5():
+    zahl = 1
+    for i in range(2,21): zahl = kgv(zahl,i)
+    return zahl
+
+
+def euler_6():
+    quadratsumme = sum(i for i in range(1,101))**2
+    summequadratzahlen = sum(i**2 for i in range(1,101))
+    return quadratsumme - summequadratzahlen
+
+
+def euler_7():
+    return primzahl(10001)    
+
+
+def euler_8(n = 13):
     zahl = '7316717653133062491922511967442657474235534919493496983520312774506326239578318016984801869478851843858615607891129494954595017379583319528532088055111254069874715852386305071569329096329522744304355766896648950445244523161731856403098711121722383113622298934233803081353362766142828064444866452387493035890729629049156044077239071381051585930796086670172427121883998797908792274921901699720888093776657273330010533678812202354218097512545405947522435258490771167055601360483958644670632441572215539753697817977846174064955149290862569321978468622482839722413756570560574902614079729686524145351004748216637048440319989000889524345065854122758866688116427171479924442928230863465674813919123162824586178664583591245665294765456828489128831426076900422421902267105562632111110937054421750694165896040807198403850962455444362981230987879927244284909188845801561660979191338754992005240636899125607176060588611646710940507754100225698315520005593572972571636269561882670428252483600823257530420752963450'
-    n = 0    
-    for i in range(0, len(zahl)-4):
-        p = 1
-        for j in range(i,i+5):
-            p = p * int(zahl[j])
-        if p > n:
-            n = p
-            liste = zahl[j-4:j+1]
-    print("Lösung:", end=" ")
-    for i in range(4):
-        print(liste[i], end="*")
-    print(liste[4], end="=")
-    print(n)
-##Lösung: 9*9*8*7*9=40824
+    max = 0
+    for i in range(len(zahl)-n+1):
+        k = 1
+        for j in range(i, i+n): k *= int(zahl[j])
+        if k > max: max = k
+    return max
 
-def euler_09():
-    "Find the only Pythagorean triplet, {a, b, c}, for which a + b + c = 1000."
-    for a in range(1, 500):
-         for b in range(a, 500):
-             c = 1000 - a - b
-             if c > b:
-                 if a**2 + b**2 == c**2:
-                     print("Pythagoras: %d²+%d²=%d² entspricht %d+%d=%d\n\nLösung: %d+%d+%d=%d" % (a,b,c,a**2,b**2,c**2,a,b,c,a+b+c))
-                     break
-##Pythagoras: 200²+375²=425² entspricht 40000+140625=180625
-##Produkt von a*b*c=31875000
-##Lösung: 200+375+425=1000
+            
+def euler_9(n = 1000):
+    return [a*b*(n-a-b) for a in range(1,n//2) for b in range(a,n//2) if a**2 + b**2 == (n-a-b)**2][0]
+    
 
 def euler_10():
-    "Calculate the sum of all the primes below two million."
-    sieb = [True] * 1999999 # Bitfeld mit einem Bit für jede Zahl
-    def markiere(sieb, x):
-        "Markiert mehrfache von Zahlen - und damit alle Zahlen, die keine Primzahlen sein können"
-        for i in range(2*x, len(sieb), x):
-            sieb[i] = False
-    for x in range(2, int(len(sieb)**0.5)+1): # Reichweite von 2 bis zur (Wurzel von 1999999) + 1
-        if sieb[x]:
-            markiere(sieb, x)
-    print("Lösung:", sum(i for i in range(2, len(sieb)) if sieb[i])) # Addition aller Längen, die Primzahlen symbolisieren
-##Lösung: 142913828922
+    return sum(erathostenes_sieb(2000000))
+
 
 def euler_11():
-    "What is the greatest product of four adjacent numbers on the same straight line in the 20 by 20 grid?"
     zahlen = (( 8, 2,22,97,38,15, 0,40, 0,75, 4, 5, 7,78,52,12,50,77,91, 8,),
               (49,49,99,40,17,81,18,57,60,87,17,40,98,43,69,48, 4,56,62, 0,),
               (81,49,31,73,55,79,14,29,93,71,40,67,53,88,30, 3,49,13,36,65,),
@@ -240,15 +446,7 @@ def euler_11():
               (20,69,36,41,72,30,23,88,34,62,99,69,82,67,59,85,74, 4,36,16,),
               (20,73,35,29,78,31,90, 1,74,31,49,71,48,86,81,16,23,57, 5,54,),
               ( 1,70,54,71,83,51,54,69,16,92,33,48,61,43,52, 1,89,19,67,48,))
-    maximal = 0
-    liste = []
-    def tabelle(zahlen):
-        "Generator, der die ganze Tabelle abarbeitet."
-        for reihe in range(0, len(zahlen)-4):
-            for spalte in range(0, len(zahlen[reihe])-4):
-                for sequenz in abschnitt(zahlen, reihe, spalte):
-                    yield sequenz
-    def abschnitt(zahlen, reihe, spalte):
+    def _abschnitt(reihe, spalte):
         "Generator, der alle 4 Sequenzen eines Abschnitts abarbeitet."
         # horizontale Reihe
         yield list(zahlen[i][spalte] for i in range(reihe, reihe+4))
@@ -258,35 +456,29 @@ def euler_11():
         yield list(zahlen[reihe+i][spalte+i] for i in range(0,4))
         # Diagonale von rechts oben nach links unten
         yield list(zahlen[reihe+i][spalte-i] for i in range(0,4))
-    def produkt(sequenz):
-        "Liefert das Produkt einer überlieferten Sequenz."
-        n = 1
-        for x in sequenz:
-            n *= x
-        return n
-    for sequenz in tabelle(zahlen): # Alle Sequenzen einer Tabelle abarbeiten ...
+    def _tabelle():
+        "Generator, der die ganze Tabelle abarbeitet."
+        for reihe in range(0, len(zahlen)-4):
+            for spalte in range(0, len(zahlen[reihe])-4):
+                for sequenz in _abschnitt(reihe, spalte):
+                    yield sequenz
+    max = 0
+    for sequenz in _tabelle(): # Alle Sequenzen einer Tabelle abarbeiten ...
         n = produkt(sequenz)
-        if n > maximal: # ... und die Sequenz mit dem höchsten Produkt festhalten
-            maximal = n
-            liste = sequenz        
-    print("Lösung:", end=" ")
-    for i in range(3):
-        print(liste[i], end="*")
-    print(liste[3], end="=")
-    print(maximal)
-##Lösung: 89*94*97*87=70600674
+        if n > max: max = n
+    return max
+
 
 def euler_12():
-    "What is the value of the first dreieck number to have over five hundred divisors?"
-    for i in range(1, 1000000000):
-        n = i * (i+1) // 2
-        if prime.num_factors(n) > 500:
-            print("Lösung:", n)
-            break
-## Lösung: 76576500
+    i = 1
+    while True:
+        n = dreieckszahl(i)
+        if anzahl_teiler(n) > 500:
+            return n
+        i += 1
+
 
 def euler_13():
-    "Find the first ten digits of the sum of one-hundred 50-digit numbers."
     print(str(sum((
         37107287533902102798797998220837590246510135740250,
         46376937677490009712648124896970078050417018260538,
@@ -389,46 +581,28 @@ def euler_13():
         20849603980134001723930671666823555245252804609722,
         53503534226472524250874054075591789781264330331690,
     )))[0:10])
-## Lösung: 5537376230
+
 
 def euler_14():
-    "Find the longest sequence using a starting number under one million."
-    cache = { 1: 1 }
-    def kette(cache, n):
-        if not cache.get(n,0):
-            if n % 2:
-                cache[n] = 1 + kette(cache, 3*n + 1)
-            else:
-                cache[n] = 1 + kette(cache, n/2)
-        return cache[n]
-    m,n = 0,0
+    max, gesucht = 0, 0
     for i in range(1, 1000000):
-        c = kette(cache, i)
-        if c > m:
-            m,n = c,i
-#    print("Länge:", cache[i])
-    print("Lösung:", n)   
-##Lösung: 837799
+        c = collatz_sequenz(i)
+        if c > max:
+            max, gesucht = c, i
+    return gesucht
+
 
 def euler_15():
-    "Starting in the top left corner in a 20 by 20 grid, how many routes are there to the bottom right corner?"
+    faktor40 = factorial(40)
+    faktor20 = factorial(20)
+    return faktor40 // faktor20 // faktor20    
 
-    faktor40 = faktor(40)
-    faktor20 = faktor(20)
-    print("Lösung:", faktor40 // faktor20 // faktor20)    
-##Lösung: 137846528820
 
 def euler_16():
-    "What is the sum of the digits of the number 2^1000?"
+    return addiere_ziffern(2**1000)
 
-    zahl=2**1000
-    print("2^1000 =",zahl)
-    print("Summe aller Ziffern =", addiere_ziffern(zahl))
-##2^1000 = 10715086071862673209484250490600018105614048117055336074437503883703510511249361224931983788156958581275946729175531468251871452856923140435984577574698574803934567774824230985421074605062371141877954182153046474983581941267398767559165543946077062914571196477686542167660429831652624386837205668069376
-##Summe aller Ziffern = 1366
     
 def euler_17():
-    "How many letters would be needed to write all the numbers in words from 1 to 1000?"    
     worte = [
         (   1,  'one'      , ''     ),
         (   2,  'two'      , ''     ),
@@ -461,23 +635,22 @@ def euler_17():
         (1000,  'thousand' , 'and'  ),
     ]
     worte.reverse()
-    def spell(n, worte):
-        word = []
+    def _spell(n, worte):
+        wort = []
         while n > 0:
             for zahl in worte:
                 if zahl[0] <= n:
                     div = n // zahl[0]
                     n = n % zahl[0]
-                    if zahl[2]: word.append(' '.join(spell(div, worte)))
-                    word.append(zahl[1])
-                    if zahl[2] and n: word.append(zahl[2])
+                    if zahl[2]: wort.append(' '.join(_spell(div, worte)))
+                    wort.append(zahl[1])
+                    if zahl[2] and n: wort.append(zahl[2])
                     break
-        return word
-    print("Lösung:", sum(len(word) for n in range(1, 1001) for word in spell(n, worte)))
-##Lösung: 21124
+        return wort
+    return sum(len(wort) for n in range(1, 1001) for wort in _spell(n, worte))
+
 
 def euler_18():
-    "Find the maximum sum travelling from the top of the dreieck to the base."
     dreieck = (
         (                            75,                             ),
         (                          95, 64,                           ),
@@ -495,7 +668,7 @@ def euler_18():
         (  63, 66,  4, 68, 89, 53, 67, 30, 73, 16, 69, 87, 40, 31,   ),
         ( 4, 62, 98, 27, 23,  9, 70, 98, 73, 93, 38, 53, 60,  4, 23, ),
     )
-    def pfad(dreieck, num):
+    def _pfad(dreieck, num):
         summe = dreieck[0][0]
         spalte = 0
         for reihe in range(1, len(dreieck)):
@@ -504,86 +677,69 @@ def euler_18():
             num //= 2
             summe += dreieck[reihe][spalte]
         return summe
-    print("Lösung", max(pfad(dreieck, n) for n in range(0, 16384)))    
-##Lösung 1074
+    return max(_pfad(dreieck, i) for i in range(16384))    
+
 
 def euler_19():
-    "How many sonntage fell on the first of the month during the twentieth century?"
     sonntage = 0
     for jahr in range(1901, 2001):
         for monat in range(1, 13):
             tag = datetime.date(jahr, monat, 1)
             if tag.weekday() == 6:
                 sonntage += 1
-    print("Lösung:", sonntage)    
-##Lösung: 171
+    return sonntage    
+
 
 def euler_20():
-    "Find the sum of digits in 100!"
     zahl = 1
     for i in range(1,100):
         zahl *= i
-    print("Lösung:", addiere_ziffern(zahl))
-##Lösung: 648
+    return addiere_ziffern(zahl)
+
 
 def euler_21():
-    "Evaluate the sum of all amicable pairs under 10000."
-    def teiler(n):
-        return list(i for i in range(1, n//2+1) if not n % i)
-    paar = dict( ((n, sum(teiler(n))) for n in range(1, 10000)) )
-    print("Lösung:", sum(n for n in range(1, 10000) if paar.get(paar[n], 0) == n and paar[n] != n))    
-##Lösung: 31626
+    def _teiler(n):
+        return list(i for i in range(1, n // 2 + 1) if not n % i)
+    paar = dict((i, sum(_teiler(i))) for i in range(1, 10000))
+    return sum(i for i in range(1, 10000) if paar.get(paar[i], 0) == i and paar[i] != i)    
+
 
 def euler_22():
-    "What is the total of all the name scores in the file of first names?"
-    def worth(name):
-        return sum(ord(letter) - ord('A') + 1 for letter in name)
-    names = open('names.txt').read().replace('"', '').split(',')
-    names.sort()
-    print("Lösung:", sum((i+1) * worth(names[i]) for i in range(0, len(names))))    
-##Lösung: 871198282
+    def _wert(name):
+        return sum(ord(i) - ord('A') + 1 for i in name)
+    from urllib.request import urlopen
+    datei = urlopen("https://projecteuler.net/project/resources/p022_names.txt")
+    namen = datei.read().decode("utf-8").replace('"', '').split(',')
+    namen.sort()
+    return sum((i+1) * _wert(namen[i]) for i in range(0, len(namen)))    
 
 
-def euler_23():
-    "Find the sum of all the positive integers which cannot be written as the sum of two abundant numbers."
-    MAX = 28124
-    prime._refresh(MAX/2)
-    abundants = [n for n in range(1, MAX) if sum(prime.all_factors(n)) > n+n]
-    abundants_dict = dict.fromkeys(abundants, 1)
-    total = 0
-    for n in range(1, MAX):
-        sum_of_abundants = 0
-        for a in abundants:
-            if a > n:
-                break
-            if abundants_dict.get(n - a):
-                sum_of_abundants = 1
-                break
-        if not sum_of_abundants:
-            total += n
-    print("Lösung:", total)    
-##Lösung: 4179871
+def euler_23(max = 28123):
+    abundante = [i for i in range(1, max+1) if abundante_zahl(i)]
+    summe = sum(i for i in range(1, max+1))
+    for i in range(12, max+1):
+        for j in abundante:
+            if j >= i: break
+            if abundante_zahl(i - j): summe -= i
+    return summe
+
 
 def euler_24():
-    "What is the millionth lexicographic permutation of the digits 0, 1, 2, 3, 4, 5, 6, 7, 8 and 9?"
-    print("Lösung", ''.join(str(x) for x in permutation(range(0,10), 999999)))
-##Lösung 2783915460
+    return int(''.join(str(x) for x in permutation(range(0,9+1), 999999)))
+
 
 def euler_25():
-    "What is the first term in the Fibonacci sequence to contain 1000 digits?"
     phi = (1 + pow(5, 0.5)) / 2
+    logphi = log10(phi)
     c = math.log10(5) / 2
-    logphi = math.log10(phi)
-    n = 1
+    i = 1
     while True:
-        if n * logphi - c >= 999:
-            print("Lösung:", n)
-            break
-        n += 1
-##Lösung: 4782
+        if i * logphi - c >= 999:
+            return i
+        i += 1
+
 
 def euler_26():
-    "Find the value of d < 1000 for which 1/d contains the longest recurring cycle."
     def zyklus_länge(n):
         i = 1
         if not n % 2:
@@ -595,261 +751,135 @@ def euler_26():
                 return i
             else:
                 i += 1
-    m = 0
-    n = 0
+    m, n = 0, 0
     for d in range(1,1000):
         c = zyklus_länge(d)
         if c > m:
-            m = c
-            n = d
-    print("Lösung:", n)    
-##Lösung: 983
+            m, n = c, d
+    return n
+
 
 def euler_27():
-    "Find a quadratic formula that produces the maximum number of primes for consecutive values of n."
-    max_paar = (0,0,0)
+    max_paar, count  = (0,0), 0
     for a in range(-999, 1000):
         for b in range(max(2, 1-a), 1000): # b >= 2, a + b + 1 >= 2
-            n, count = 0, 0
+            n, i = 0, 0
             while True:
-                v = n*n + a*n + b
-                prime._refresh(v)
-                if prime.isprime(v):
-                    count += 1
+                if ist_primzahl(n**2 + a*n + b):
+                    i += 1
                 else:
                     break
                 n += 1
-            if count > max_paar[2]:
-                max_paar = (a,b,count)
-    print("Lösung:", max_paar[0] * max_paar[1])   
-##Lösung: -59231
+            if i > count:
+                max_paar, count  = (a,b), i
+    return max_paar[0] * max_paar[1]   
+
 
 def euler_28():
-    "What is the sum of both diagonals in a 1001 by 1001 spiral?"
-    diagonal = 1
-    start = 1
-    for width in range(3, 1002, 2):
-        increment = width - 1
-        count = increment * 4
-        diagonal = diagonal + start * 4 + increment * 10
-        start = start + count
-    print("Lösung:", diagonal)    
-##Lösung: 669171001
+    diagonale, start = 1, 1
+    for breite in range(3, 1001+1, 2):
+        i = breite - 1
+        count = i * 4
+        diagonale += start * 4 + i * 10
+        start += count
+    return diagonale    
+
 
 def euler_29():
-    "How many distinct terms are in the sequence generated by ab for 2 ≤ a ≤ 100 and 2 ≤ b ≤ 100?"
     terms = {}
     count = 0
-    for a in range(2,101):
-        for b in range(2,101):
+    for a in range(2,100+1):
+        for b in range(2,100+1):
             c = pow(a,b)
-            if not terms.get(c, 0):
-               terms[c] = 1
+            if not terms.get(c):
+               terms[c] = True
                count += 1
     print("Lösung:", count)
-##Lösung: 9183
+
 
 def euler_30():
-    "Find the sum of all the numbers that can be written as the sum of fifth powers of their digits."
-    def power_of_digits(n, p):
+    def pow_ziffern(n, p):
         s = 0
         while n > 0:
-            d = n % 10
-            n //= 10
-            s += pow(d, p)
+            s, n = s + (n % 10)**p, n // 10
         return s
-    print("Lösung:", sum(n for n in range(2, 200000) if power_of_digits(n, 5) == n))
-##Lösung: 443839
+    return sum(n for n in range(2, 200000) if pow_ziffern(n, 5) == n)
+
 
 def euler_31():
-    "Investigating combinations of English currency denominations."
-    coins = (1, 2, 5, 10, 20, 50, 100, 200)
-    def balance(pattern):
-        return sum(coins[x]*pattern[x] for x in range(0, len(pattern)))
-    def gen(pattern, coinnum, num):
-        coin = coins[coinnum]
-        for p in range(0, num//coin+1):
-            newpat = pattern[:coinnum] + (p,)
-            bal = balance(newpat)
-            if bal > num: return
-            elif bal == num:
-                yield newpat
-            elif coinnum < len(coins)-1:
-                for pat in gen(newpat, coinnum+1, num):
-                    yield pat
-    print("Lösung:", sum(1 for pat in gen((), 0, 200)))
-##Lösung: 73682
+    münzen = [1, 2, 5, 10, 20, 50, 100, 200]
+    betrag = 200
+    wege = [1] + [0]*betrag
+    for münze in münzen:
+        for i in range(münze, betrag+1):
+            wege[i] += wege[i-münze]
+    return wege[betrag]    
+
 
 def euler_32():
     "Find the sum of all numbers that can be written as pandigital products."
-    from combinatorics import permutations
-    def num(l):
-        s = 0
-        for n in l:
-            s = s * 10 + n
-        return s
-    product = {}
-    x = list(range(1,10))
-    for perm in permutations(x):
-        for cross in range(1,4):            # Number can't be more than 4 digits
-            for eq in range(cross+1, 6):    # Result can't be less than 4 digits
-                a = num(perm[0:cross])
-                b = num(perm[cross:eq])
-                c = num(perm[eq:9])
-                if a * b == c:
-                    product[c] = 1
-    print("Lösung:", sum(p for p in product))
-##Lösung: 45228
+    p = set()
+    for i in range(2, 80):
+        start = 1234 if i < 10 else 123 
+        for j in range(start, 10000//i):
+            if ist_pandigital(str(i) + str(j) + str(i*j)):
+                p.add(i*j)
+    return sum(p)
+
 
 def euler_33():
-    "Discover all the fractions with an unorthodox cancelling method."
-    def brüche():
-        for zähler in map(str, range(10, 100)):
-            for nenner in map(str, range(int(zähler)+1, 100)):
-                if zähler == nenner:
-                    continue
-                if zähler[1] == nenner[1] and zähler[1] == '0':
-                    continue
-                if zähler[0] == nenner[0] and int(zähler) * int(nenner[1]) == int(nenner) * int(zähler[1]):
-                    yield(int(zähler), int(nenner))
-                if zähler[0] == nenner[1] and int(zähler) * int(nenner[0]) == int(nenner) * int(zähler[1]):
-                    yield(int(zähler), int(nenner))
-                if zähler[1] == nenner[1] and int(zähler) * int(nenner[0]) == int(nenner) * int(zähler[0]):
-                    yield(int(zähler), int(nenner))
-                if zähler[1] == nenner[0] and int(zähler) * int(nenner[1]) == int(nenner) * int(zähler[0]):
-                    yield(int(zähler), int(nenner))
-    def ggt(a,b):
-        return b and ggt(b, a % b) or a
-    zähler = 1
-    nenner = 1
-    for bruch in brüche():
-        zähler = zähler * bruch[0]
-        nenner = nenner * bruch[1]
-    g = ggt(zähler, nenner)
-    print("Lösung:", nenner // g)    
-##Lösung: 100
+    zähler, nenner = 1, 1
+    for i in range(1, 9+1):
+        for j in range(1, i):
+            q, r = divmod(9*j*i, 10*j-i)
+            if not r and q <= 9:
+                zähler *= i
+                nenner *= j
+    return zähler // nenner
+
 
 def euler_34():
-    "Find the sum of all numbers which are equal to the sum of the factorial of their digits."
-    fact = (1, 1, 2, 6, 24, 120, 720, 5040, 40320, 362880)
-    def sum_of_digits_factorial(n):
+    def summe(n):
         s = 0
         while n > 0:
-            d = n % 10
-            s += fact[d]
+            s += faktor(n%10)
             n //= 10
         return s
-    print("Lösung:", sum(n for n in range(10, 100000) if n == sum_of_digits_factorial(n)))    
-##Lösung: 40730
+    return sum(n for n in range(10, 100000) if n == summe(n))    
+
 
 def euler_35():
-    "How many circular primes are there below one million?"
-    sieb = [True] * 1000000
-    sieb[0] = sieb[1] = False
-    def mark(sieb, x):
-        for i in range(x+x, len(sieb), x):
-            sieb[i] = False
-    for x in range(2, int(len(sieb) ** 0.5) + 1):
-        mark(sieb, x)
-    def circular(n):
-        ziffern = []
-        while n > 0:
-            ziffern.insert(0, str(n % 10))
-            n //= 10
-        for d in range(1, len(ziffern)):
-            yield int(''.join(ziffern[d:] + ziffern[0:d]))
-    count = 0
-    for n, p in enumerate(sieb):
-        if p:
-            iscircularprime = True
-            for m in circular(n):
-                if not sieb[m]:
-                    iscircularprime = False
-                    break
-            if iscircularprime:
-                count += 1
-    print("Lösung:", count)
-##Lösung: 55
+    return sum(1 for i in erathostenes_sieb(1000000) if ist_zirkuläre_primzahl(i))
 
 
 def euler_36():
-    "Find the sum of all numbers less than one million, which are palindromic in base 10 and base 2."
-    def ispalindrome(n, base):
-        ziffern = []
-        rückwärts = []
-        while n > 0:
-            d = str(n % base)
-            ziffern.append(d)
-            rückwärts.insert(0, d)
-            n //= base
-        return ziffern == rückwärts
-    print("Lösung:", sum(n for n in range(1, 1000000) if ispalindrome(n, 10) and ispalindrome(n, 2)))
-##Lösung: 872187
+    return sum(i for i in range(1, 1000000) if ist_palindrom(i) and ist_palindrom(bin(i)[2:]))
+
 
 def euler_37():
-    "Find the sum of all eleven primes that are both truncatable from left to right and right to left."
-    digits = range(0, 10)
-    prime_digits = (2, 3, 5, 7)
-    def num(l):
-        s = 0
-        for n in l:
-            s = s * 10 + n
-        return s
-    def is_left_truncatable(l):
-        is_truncatable = 1
-        for size in range(1, len(l)+1):
-            n = num(l[:size])
-            prime._refresh(int(math.sqrt(n)))
-            if not prime._isprime(n):
-                is_truncatable = 0
-                break
-        return is_truncatable
-    def is_right_truncatable(l):
-        is_truncatable = 1
-        for size in range(0, len(l)):
-            n = num(l[size:])
-            prime._refresh(int(math.sqrt(n)))
-            if not prime._isprime(n):
-                is_truncatable = 0
-                break
-        return is_truncatable
-    def gen(result, number):
-        if len(number) > 6: return
-        number = list(number)
-        number.append('')
-        for digit in digits:
-            number[-1] = digit
-            if is_left_truncatable(number):
-                if is_right_truncatable(number) and len(number) > 1:
-                    result.append(num(number))
-                gen(result, number)
-    result = []
-    gen(result, [])
-    print(result)
-    print("Lösung:", sum(result))
-##[23, 313, 3137, 317, 37, 373, 3797, 53, 73, 739397, 797]
-##Lösung: 748317    
+    p = primzahl_generator()
+    i = 0
+    summe = 0
+    next(p) # goodbye 2
+    next(p) # goodbye 3
+    next(p) # goodbye 5
+    next(p) # goodbye 7
+    while i < 11:
+        pz = next(p)
+        if ist_trunkierbare_primzahl(pz):
+            i += 1
+            summe += pz
+    return summe
+
 
 def euler_38():
-    "What is the largest 1 to 9 pandigital that can be formed by multiplying a fixed number by 1, 2, 3, ... ?"
-    def get_pandigital(n):
-        pandigital = ''
-        for x in range(1, 10):
-            pandigital += str(x * n)
-            if len(pandigital) >= 9:
-                break
-        if len(pandigital) == 9 and sorted(dict.fromkeys(list(pandigital)).keys()) == list("123456789"):
-            return pandigital
-        else:
-            return ''
-    max = 0
-    for n in range(1, 10000):
-        p = get_pandigital(n)
-        if p:
-            if int(p) > max:
-                max = int(p)
-    print("Lösung:", max)    
-##Lösung: 932718654
+    i = 9999
+    while i > 0:
+        k = int(str(i) + str(2 * i))
+        if ist_pandigital(k):
+            return k
+        i -= 1
+
 
 def euler_39():
     "If p is the perimeter of a right angle triangle, {a, b, c}, which value, for p ≤ 1000, has the most solutions?"
@@ -868,6 +898,7 @@ def euler_39():
     print("Lösung:", maxp)    
 ##Lösung: 840
 
+
 def euler_40():
     "Finding the nth digit of the fractional part of the irrational number."
     def digit_at(n):
@@ -885,6 +916,7 @@ def euler_40():
     print("Lösung:", digit_at(1) * digit_at(10) * digit_at(100) * digit_at(1000) * digit_at(10000) * digit_at(100000) * digit_at(1000000))
 ##Lösung: 210
 
+
 def euler_41():
     "What is the largest n-digit pandigital prime that exists?"
     from combinatorics import permutations
@@ -900,6 +932,7 @@ def euler_41():
             break
 ##Lösung: 7652413
 
+
 def euler_42():
     "How many triangle words does the list of common English words contain?"
     def worth(word):
@@ -908,6 +941,7 @@ def euler_42():
     triangle_numbers = dict.fromkeys(list(n*(n+1)/2 for n in range(1, 100)), 1)
     print("Lösung:", sum(1 for word in words if worth(word) in triangle_numbers))
 ##Lösung: 162
+
 
 def euler_43():
     "Find the sum of all pandigital numbers with an unusual sub-string divisibility property."
@@ -933,6 +967,7 @@ def euler_43():
     print("Lösung:", total)    
 ##Lösung: 16695334890
 
+
 def euler_44():
     "Find the smallest pair of pentagonal numbers whose sum and difference is pentagonal."
     MAX = 2000
@@ -950,6 +985,7 @@ def euler_44():
     print("Lösung:", main2())
 ##Lösung: 5482660
 
+
 def euler_45():
     "After 40755, what is the next triangle number that is also pentagonal and hexagonal?"
     MAX = 100000
@@ -964,6 +1000,7 @@ def euler_45():
             print("Lösung:", v)
             break
 ##Lösung: 1533776805
+
 
 def euler_46():
     "What is the smallest odd composite that cannot be written as the sum of a prime and twice a square?"
@@ -984,6 +1021,7 @@ def euler_46():
                 break
 ##Lösung: 5777
 
+
 def euler_47():
     "Find the first four consecutive integers to have four distinct primes factors."
     def distinct_factors(n):
@@ -996,6 +1034,7 @@ def euler_47():
     print("Lösung:", len(factors)-4)
 ##Lösung: 134043
 
+
 def euler_48():
     "Find the last ten digits of 11 + 22 + ... + 10001000."
     s = 0
@@ -1004,6 +1043,7 @@ def euler_48():
         s += pow(x, x)
     print("Lösung:", s % mod)
 ##Lösung: 9110846700
+
 
 def euler_49():
     "Find arithmetic sequences, made of prime terms, whose four digits are permutations of each other."
@@ -1029,6 +1069,7 @@ def euler_49():
                         return
 ##Lösung: 296962999629
 
+
 def euler_50():
     "Which prime, below one-million, can be written as the sum of the most consecutive primes?"
     MAX = 5000
@@ -1048,6 +1089,7 @@ def euler_50():
             print("Lösung:", maxprime)
             break
 ##Lösung: 997651
+
 
 def euler_51():
     "Find the smallest prime which, by changing the same part of the number, can form eight different primes."
@@ -1084,6 +1126,7 @@ def euler_51():
     print("Lösung:",p)
 ##Lösung: 121313
 
+
 def euler_52():
     "Find the smallest positive integer, x, such that 2x, 3x, 4x, 5x, and 6x, contain the same digits in some order."
     def multiples_have_same_digits(n):
@@ -1101,6 +1144,7 @@ def euler_52():
             break
 ##Lösung: 142857
 
+
 def euler_53():
     "How many values of C(n,r), for 1 ≤ n ≤ 100, exceed one-million?"
     fact_c = { 0: 1, 1: 1 }
@@ -1114,6 +1158,7 @@ def euler_53():
                 count += 1
     print("Lösung:", count)
 ##Lösung: 4075
+
 
 def euler_54():
     "How many hands did player one win in the game of poker?"
@@ -1199,17 +1244,10 @@ def euler_54():
     print("Lösung:", count)
 ##Lösung: 376
 
+
 def euler_55():
-    "How many Lychrel numbers are there below ten-thousand?"
-    def is_lychrel(n):
-        n = str(n)
-        for count in range(0, 50):
-            n = str(int(n) + int(n[::-1]))
-            if n == n[::-1]:
-                return False
-        return True
-    print("Lösung:", sum(1 for n in range(0, 10000) if is_lychrel(n)))
-##Lösung: 249
+    return sum(1 for i in range(10000) if ist_lychrel_zahl(i))
+
 
 def euler_56():
     "Considering natural numbers of the form, ab, finding the maximum digital sum."
@@ -1222,6 +1260,7 @@ def euler_56():
     print("Lösung:", max)
 ##Lösung: 972
 
+
 def euler_57():
     "Investigate the expansion of the continued fraction for the square root of two."
     num, den, count = 3, 2, 0
@@ -1231,6 +1270,7 @@ def euler_57():
             count += 1
     print("Lösung:", count)
 ##Lösung: 153
+
 
 def euler_58():
     "Investigate the number of primes that lie on the diagonals of the spiral grid."
@@ -1249,9 +1289,9 @@ def euler_58():
             break
 ##Lösung: 26241
 
+
 def euler_59():
     "Using a brute force attack, can you decrypt the cipher using XOR encryption?"
-    from combinatorics import selections
     code = tuple(int(c) for c in open('cipher1.txt').read().split(','))
     def decrypt(code, password):
         l = len(password)
@@ -1268,3 +1308,8 @@ def euler_59():
             break
 ##Text: (The Gospel of John, chapter 1) 1 In the beginning the Word already existed. He was with God, and he was God. 2 He was in the beginning with God. 3 He created everything there is. Nothing exists that he didn't make. 4 Life itself was in him, and this life gives light to everyone. 5 The light shines through the darkness, and the darkness can never extinguish it. 6 God sent John the Baptist 7 to tell everyone about the light so that everyone might believe because of his testimony. 8 John himself was not the light; he was only a witness to the light. 9 The one who is the true light, who gives light to everyone, was going to come into the world. 10 But although the world was made through him, the world didn't recognize him when he came. 11 Even in his own land and among his own people, he was not accepted. 12 But to all who believed him and accepted him, he gave the right to become children of God. 13 They are reborn! This is not a physical birth resulting from human passion or plan, this rebirth comes from God.14 So the Word became human and lived here on earth among us. He was full of unfailing love and faithfulness. And we have seen his glory, the glory of the only Son of the Father.
 ##Lösung: 107359
+
+
+
+
+
