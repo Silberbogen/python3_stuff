@@ -698,9 +698,7 @@ def euler_20():
 
 
 def euler_21():
-    def _teiler(n):
-        return list(i for i in range(1, n // 2 + 1) if not n % i)
-    paar = dict((i, sum(_teiler(i))) for i in range(1, 10000))
+    paar = dict((i, sum(echte_teiler(i))) for i in range(1, 10000))
     return sum(i for i in range(1, 10000) if paar.get(paar[i], 0) == i and paar[i] != i)    
 
 
